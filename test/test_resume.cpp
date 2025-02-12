@@ -123,11 +123,12 @@ torrent_handle test_resume_flags(lt::session& ses
 	, bool const test_deprecated = false)
 {
 	bool const with_files = (flags & torrent_flags::seed_mode) && !(flags & torrent_flags::no_verify_files);
-	std::shared_ptr<torrent_info> ti = generate_torrent(with_files);
+	add_torrent_params atp = generate_torrent(with_files);
+	auto ti = atp.ti;
 
-	add_torrent_params p;
 	std::vector<char> rd = generate_resume_data(ti.get(), resume_file_prio);
 	TORRENT_UNUSED(test_deprecated);
+	add_torrent_params p;
 #if TORRENT_ABI_VERSION == 1
 	if (test_deprecated)
 	{
@@ -227,9 +228,8 @@ void default_tests(torrent_status const& s, lt::time_point const time_now)
 void test_piece_priorities(bool test_deprecated = false)
 {
 	lt::session ses(settings());
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 	p.save_path = ".";
 	torrent_handle h = ses.add_torrent(p);
 
@@ -299,9 +299,8 @@ TORRENT_TEST(test_non_metadata)
 	// and a URL seed:
 	// http://torrent_file_url_seed.com
 
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 	p.save_path = ".";
 	torrent_handle h = ses.add_torrent(p);
 
@@ -309,8 +308,8 @@ TORRENT_TEST(test_non_metadata)
 	h.remove_url_seed("http://torrent_file_url_seed.com/");
 	h.add_url_seed("http://torrent.com/");
 
-	TEST_EQUAL(ti->comment(), "test comment");
-	TEST_EQUAL(ti->creator(), "libtorrent test");
+	TEST_EQUAL(p.comment, "test comment");
+	TEST_EQUAL(p.created_by, "libtorrent test");
 	auto const creation_date = ti->creation_date();
 
 	h.save_resume_data(torrent_handle::save_info_dict);
@@ -325,9 +324,9 @@ TORRENT_TEST(test_non_metadata)
 		TEST_CHECK(atp.trackers == std::vector<std::string>{"http://torrent_file_tracker2.com/announce"});
 		TEST_CHECK(atp.url_seeds == std::vector<std::string>{"http://torrent.com/"});
 		TEST_CHECK(atp.ti);
-		TEST_EQUAL(atp.ti->comment(), "test comment");
-		TEST_EQUAL(atp.ti->creator(), "libtorrent test");
-		TEST_EQUAL(atp.ti->creation_date(), creation_date);
+		TEST_EQUAL(atp.comment, "test comment");
+		TEST_EQUAL(atp.created_by, "libtorrent test");
+		TEST_EQUAL(atp.creation_date, creation_date);
 
 		std::vector<char> resume_data = write_resume_data_buf(atp);
 		p = read_resume_data(resume_data);
@@ -344,8 +343,6 @@ TORRENT_TEST(test_non_metadata)
 	TEST_EQUAL(h.trackers().at(0).url, "http://torrent_file_tracker2.com/announce");
 	TEST_CHECK(h.url_seeds() == std::set<std::string>{"http://torrent.com/"});
 	auto t = h.status().torrent_file.lock();
-	TEST_EQUAL(ti->comment(), "test comment");
-	TEST_EQUAL(ti->creator(), "libtorrent test");
 	TEST_EQUAL(ti->creation_date(), creation_date);
 }
 
@@ -355,9 +352,8 @@ TORRENT_TEST(test_remove_trackers)
 	// this test torrent contain a tracker:
 	// http://torrent_file_tracker.com/announce
 
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 	p.save_path = ".";
 	torrent_handle h = ses.add_torrent(p);
 
@@ -394,9 +390,8 @@ TORRENT_TEST(test_remove_web_seed)
 	// this test torrent contain a URL seed:
 	// http://torrent_file_url_seed.com
 
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 	p.save_path = ".";
 	torrent_handle h = ses.add_torrent(p);
 
@@ -430,7 +425,8 @@ TORRENT_TEST(test_remove_web_seed)
 TORRENT_TEST(piece_slots)
 {
 	// make sure the "pieces" field is correctly accepted from resume data
-	std::shared_ptr<torrent_info> ti = generate_torrent();
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 
 	error_code ec;
 	create_directories("add_torrent_params_test" SEP "test_resume", ec);
@@ -442,8 +438,6 @@ TORRENT_TEST(piece_slots)
 		ofstream("add_torrent_params_test" SEP "test_resume" SEP "tmp3").write(b.data(), std::streamsize(b.size()));
 	}
 
-	add_torrent_params p;
-	p.ti = ti;
 	p.save_path = "add_torrent_params_test";
 
 	p.have_pieces.resize(2);
@@ -489,7 +483,8 @@ namespace {
 void test_piece_slots_seed(settings_pack const& sett)
 {
 	// make sure the "pieces" field is correctly accepted from resume data
-	std::shared_ptr<torrent_info> ti = generate_torrent();
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 
 	error_code ec;
 	create_directories(combine_path("add_torrent_params_test", "test_resume"), ec);
@@ -501,7 +496,6 @@ void test_piece_slots_seed(settings_pack const& sett)
 		ofstream("add_torrent_params_test" SEP "test_resume" SEP "tmp3").write(b.data(), std::streamsize(b.size()));
 	}
 
-	add_torrent_params p;
 	p.ti = ti;
 	p.save_path = "add_torrent_params_test";
 
@@ -970,9 +964,8 @@ void test_zero_file_prio(bool test_deprecated = false, bool mix_prios = false)
 	std::printf("test_file_prio\n");
 
 	lt::session ses(settings());
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
+	auto ti = p.ti;
 	p.save_path = ".";
 
 	entry rd;
@@ -1052,12 +1045,12 @@ TORRENT_TEST(backwards_compatible_resume_info_dict)
 	// make sure the "info" dictionary is picked up correctly from the
 	// resume data in backwards compatible mode
 
-	std::shared_ptr<torrent_info> ti = generate_torrent();
+	add_torrent_params atp = generate_torrent();
 	entry rd;
 	rd["file-format"] = "libtorrent resume file";
-	rd["name"] = ti->name();
-	rd["info-hash"] = ti->info_hashes().v1;
-	rd["info"] = bdecode(ti->info_section());
+	rd["name"] = atp.name;
+	rd["info-hash"] = atp.ti->info_hashes().v1;
+	rd["info"] = bdecode(atp.ti->info_section());
 	std::vector<char> resume_data = bencode(rd);
 
 	add_torrent_params atp;
@@ -1074,8 +1067,7 @@ TORRENT_TEST(backwards_compatible_resume_info_dict)
 
 TORRENT_TEST(merkle_trees)
 {
-	lt::add_torrent_params p;
-	p.ti = generate_torrent();
+	lt::add_torrent_params p = generate_torrent();
 	p.save_path = ".";
 
 	std::vector<std::vector<char>> piece_layers;
@@ -1120,17 +1112,17 @@ TORRENT_TEST(resume_info_dict)
 	// make sure the "info" dictionary is picked up correctly from the
 	// resume data
 
-	std::shared_ptr<torrent_info> ti = generate_torrent();
+	add_torrent_params p = generate_torrent();
 	entry rd;
 	rd["file-format"] = "libtorrent resume file";
-	rd["name"] = ti->name();
-	rd["info-hash"] = ti->info_hashes().v1;
-	rd["info"] = bdecode(ti->info_section());
+	rd["name"] = p.ti->name();
+	rd["info-hash"] = p.ti->info_hashes().v1;
+	rd["info"] = bdecode(p.ti->info_section());
 	std::vector<char> const resume_data = bencode(rd);
 
 	error_code ec;
 	add_torrent_params atp = read_resume_data(resume_data, ec);
-	TEST_CHECK(atp.ti->info_hashes() == ti->info_hashes());
+	TEST_CHECK(atp.ti->info_hashes() == p.ti->info_hashes());
 }
 
 TORRENT_TEST(zero_file_prio)
@@ -1164,9 +1156,8 @@ namespace {
 void test_seed_mode(test_mode_t const flags)
 {
 	lt::session ses(settings());
-	std::shared_ptr<torrent_info> ti = generate_torrent(true);
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent(true);
+	auto ti = p.ti;
 	p.save_path = ".";
 
 	if (flags & test_mode::missing_files)
@@ -1416,9 +1407,7 @@ TORRENT_TEST(seed_mode_missing_files_with_all_pieces)
 TORRENT_TEST(seed_mode_load_peers)
 {
 	lt::session ses(settings());
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
 	p.save_path = ".";
 	p.flags |= torrent_flags::seed_mode;
 	p.peers.push_back(tcp::endpoint(make_address("1.2.3.4"), 12345));
@@ -1674,12 +1663,9 @@ template <typename Fun>
 void test_unfinished_pieces(Fun f)
 {
 	// create a torrent and complete files
-	std::shared_ptr<torrent_info> ti = generate_torrent(true, true);
-
-	add_torrent_params p;
-	p.info_hashes = ti->info_hashes();
+	add_torrent_params p = generate_torrent(true, true);
+	auto ti = p.ti;
 	p.have_pieces.resize(ti->num_pieces(), true);
-	p.ti = ti;
 	p.save_path = ".";
 
 	f(*ti, p);
@@ -1792,9 +1778,7 @@ TORRENT_TEST(resume_data_have_pieces)
 TORRENT_TEST(removed)
 {
 	lt::session ses(settings());
-	std::shared_ptr<torrent_info> ti = generate_torrent();
-	add_torrent_params p;
-	p.ti = ti;
+	add_torrent_params p = generate_torrent();
 	p.save_path = ".";
 	// we're _likely_ to trigger the condition, but not guaranteed. loop
 	// until we do.
